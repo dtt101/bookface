@@ -17,6 +17,7 @@ gem 'prawn', '0.15.0'
 
 require 'optparse'
 require 'fileutils'
+require 'json'
 require 'open-uri'
 require 'RMagick'
 require 'prawn'
@@ -70,8 +71,7 @@ class BookFacePages
 
       # grab images as sorted numerical array
       profile_images = Dir.glob("*.*").sort_by(&:to_i)
-      puts 'in make page'
-      puts profile_images
+
       # create ImageList object from filenames
       images_list = Magick::ImageList.new(*profile_images)
 
@@ -98,30 +98,21 @@ class BookFacePages
   end
 
   def self.download_profile(image_dir, profile_id)
-    # download images for each id
-    # TODO - download json first and test for silohette
-    # for each id get profile data: http://graph.facebook.com/8/picture?redirect=0&height=100&type=normal&width=100
-    # {
-    #    "data": {
-    #       "url": "http://static.ak.fbcdn.net/rsrc.php/v2/yL/r/HsTZSDw4avx.gif",
-    #       "is_silhouette": true
-    #    }
-    # }
-    # {
-    #    "data": {
-    #       "url": "http://profile.ak.fbcdn.net/hprofile-ak-frc3/t1/c14.4.153.153/s100x100/1939620_10101266232851011_437577509_a.jpg",
-    #       "width": 100,
-    #       "height": 100,
-    #       "is_silhouette": false
-    #    }
-    # }
+    # download only real profile images for id
+    # returns true if an image has been downloaded and false if not
     FileUtils.cd(image_dir) do
-    # if is not a silhouette, save image
-      File.open("#{profile_id}.png", 'wb') do |fo|
-        fo.write open("http://graph.facebook.com/#{profile_id}/picture?height=100&type=normal&width=100").read
+      image_json = JSON.load(open(
+        "http://graph.facebook.com/#{profile_id}/picture?redirect=0&height=100&type=normal&width=100"
+      ))
+      if image_json["data"]["is_silhouette"] == false
+        File.open("#{profile_id}.png", 'wb') do |fo|
+          fo.write open(image_json["data"]["url"]).read
+        end
+        return true
+      else
+        return false
       end
     end
-      return true # or false if silouett
   end
 
 end

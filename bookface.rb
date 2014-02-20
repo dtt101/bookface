@@ -36,7 +36,7 @@ parser = OptionParser.new do |opts|
     opts.banner = 'cat <options> <file>'
     opts.separator ''
 
-    opts.on('-c', '--count count', Integer, 'Count') do |count|
+    opts.on('-c', '--count count', Integer, 'Count (multiple of 100)') do |count|
       options[:count] = count;
     end
 
@@ -49,32 +49,9 @@ end
 parser.parse!(ARGV)
 
 if options[:count] == nil
-  print 'Enter number of faces: '
+  print 'Enter number of faces (multiple of 100): '
   options[:count] = gets.chomp
 end
-
-
-# new logic
-# count up facebook ids indefinitely
-# for each id get profile data: http://graph.facebook.com/8/picture?redirect=0&height=100&type=normal&width=100
-# {
-#    "data": {
-#       "url": "http://static.ak.fbcdn.net/rsrc.php/v2/yL/r/HsTZSDw4avx.gif",
-#       "is_silhouette": true
-#    }
-# }
-# {
-#    "data": {
-#       "url": "http://profile.ak.fbcdn.net/hprofile-ak-frc3/t1/c14.4.153.153/s100x100/1939620_10101266232851011_437577509_a.jpg",
-#       "width": 100,
-#       "height": 100,
-#       "is_silhouette": false
-#    }
-# }
-# if is not a silhouette, save image
-# when we have 100 saved images pass directory to make page
-# make montage, save as pdf
-# return to main loop and continue until we hit count
 
 # create temporary directory unless it already exists
 if File.directory?(TMP_DIR_NAME)
@@ -87,22 +64,14 @@ end
 # class to hold page make method
 class BookFacePages
 
-  def self.make_page(page_number, page_start_id, page_end_id)
-    # create directory to store this pages images
-    page_dir = FileUtils.mkdir(TMP_DIR_NAME + "/#{page_number}")[0]
+  def self.make_page(page_number, image_dir, export_dir)
 
-    FileUtils.cd(page_dir) do
-
-      page_start_id.upto(page_end_id) do |id|
-
-        # download images for each id
-        File.open("#{id}.png", 'wb') do |fo|
-          fo.write open("http://graph.facebook.com/#{id}/picture?height=100&type=normal&width=100").read
-        end
-      end
+    FileUtils.cd(image_dir) do
 
       # grab images as sorted numerical array
       profile_images = Dir.glob("*.*").sort_by(&:to_i)
+      puts 'in make page'
+      puts profile_images
       # create ImageList object from filenames
       images_list = Magick::ImageList.new(*profile_images)
 
@@ -124,50 +93,84 @@ class BookFacePages
 
     end
 
-    # TODO - move pdf into a page_images folder
+    # TODO - move pdf into export_dir
 
   end
 
-  self.
+  def self.download_profile(image_dir, profile_id)
+    # download images for each id
+    # TODO - download json first and test for silohette
+    # for each id get profile data: http://graph.facebook.com/8/picture?redirect=0&height=100&type=normal&width=100
+    # {
+    #    "data": {
+    #       "url": "http://static.ak.fbcdn.net/rsrc.php/v2/yL/r/HsTZSDw4avx.gif",
+    #       "is_silhouette": true
+    #    }
+    # }
+    # {
+    #    "data": {
+    #       "url": "http://profile.ak.fbcdn.net/hprofile-ak-frc3/t1/c14.4.153.153/s100x100/1939620_10101266232851011_437577509_a.jpg",
+    #       "width": 100,
+    #       "height": 100,
+    #       "is_silhouette": false
+    #    }
+    # }
+    FileUtils.cd(image_dir) do
+    # if is not a silhouette, save image
+      File.open("#{profile_id}.png", 'wb') do |fo|
+        fo.write open("http://graph.facebook.com/#{profile_id}/picture?height=100&type=normal&width=100").read
+      end
+    end
+      return true # or false if silouett
+  end
+
 end
 
 # START
+# new logic
+# count up facebook ids indefinitely
 
-# set number of photos from input
-photo_total = options[:count]
-# set number of pages, ensuring we round up
-page_total = photo_total.fdiv(PHOTOS_PER_PAGE).ceil
+# when we have 100 saved images pass directory to make page
+# make montage, save as pdf
+# return to main loop and continue until we hit count
 
-# set photo profile ids to control loop
-page_start_id = FACEBOOK_START_ID # holds current photo
-page_end_id = page_start_id + (PHOTOS_PER_PAGE - 1) # set first page end ID
-end_id = photo_total + FACEBOOK_START_ID # final ID to download
 
-puts "page_total: #{page_total}"
+photo_total = options[:count] # amount of profile photos required
+profile_id = FACEBOOK_START_ID # holds current photo
+photos_downloaded = 0 # number of square profile photos downloaded
+batch_count = 0 # holds number downloaded for current batch
+batch_limit = PHOTOS_PER_PAGE # amount to be downloaded for each batch
+page_number = 1 # starting page number
 
-# loop round each page
-page_total.times do |page_number|
+# make tmp dir for each batch of photos
+image_dir = FileUtils.mkdir(TMP_DIR_NAME + "/batch")[0]
+# make tmp dir for each batch pdf export
+export_dir = FileUtils.mkdir(TMP_DIR_NAME + "/exports")[0]
 
-  # test if we are at the final page and adjust loop variable
-  if page_end_id >= end_id
-    page_end_id = end_id
+# main loop
+while photos_downloaded < photo_total
+  puts 'in main while'
+  while batch_count < batch_limit
+    puts 'batch count and limit'
+    puts batch_count
+    puts batch_limit
+    downloaded = BookFacePages.download_profile(image_dir, profile_id)
+    if downloaded
+      batch_count += 1
+      photos_downloaded += 1
+    end
+    profile_id += 1
   end
 
-  # make the page - start at id, end at id
-  BookFacePages.make_page(page_number, page_start_id, page_end_id)
-
-  puts "in loop"
-  puts "page_number #{page_number}"
-  puts "page_start_id #{page_start_id}"
-  puts "page_end_id #{page_end_id}"
-
-  # increment start and end ids by total per page for next run
-  page_start_id += PHOTOS_PER_PAGE
-  page_end_id += PHOTOS_PER_PAGE
+  # we now have reached a batch count so make a page
+  BookFacePages.make_page(page_number, image_dir, export_dir)
+  batch_count = 0
+  page_number += 1
+  # TODO - delete all image from image_dir
 
 end
 
-# now munge all pages together with prawn using pdf directory
+# now munge all pages in exports together with prawn using pdf directory
 # output to same dir as script not TMP_DIR_NAME
 
 

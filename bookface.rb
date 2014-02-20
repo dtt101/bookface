@@ -157,7 +157,7 @@ while photos_downloaded < photo_total
   BookFacePages.make_page(page_number, image_dir, export_dir)
   # move pdf to exports
   FileUtils.move("#{image_dir}/#{page_number}.pdf", export_dir)
-  # TODO - delete all file from image_dir
+  # delete all files from image_dir
   FileUtils.rm_rf("#{image_dir}/.", secure: true)
 
   # update to next batch
@@ -166,11 +166,47 @@ while photos_downloaded < photo_total
 
 end
 
+class PdfMerger
+
+  def merge(pdf_paths, destination)
+
+    first_pdf_path = pdf_paths.delete_at(0)
+
+    Prawn::Document.generate(destination, :template => first_pdf_path) do |pdf|
+
+      pdf_paths.each do |pdf_path|
+        pdf.go_to_page(pdf.page_count)
+
+        template_page_count = count_pdf_pages(pdf_path)
+        (1..template_page_count).each do |template_page_number|
+          pdf.start_new_page(:template => pdf_path, :template_page => template_page_number)
+        end
+      end
+
+    end
+
+  end
+
+  private
+
+  def count_pdf_pages(pdf_file_path)
+    pdf = Prawn::Document.new(:template => pdf_file_path)
+    pdf.page_count
+  end
+
+end
+
 # now munge all pages in exports together with prawn using pdf directory
 # output to same dir as script not TMP_DIR_NAME
-
+FileUtils.cd(export_dir) do
+  pdf_file_paths = Dir.glob("*.pdf").sort_by(&:to_i)
+  puts 'paths'
+  puts pdf_file_paths
+  m = PdfMerger.new
+  m.merge(pdf_file_paths, export_dir)
+end
 
 # cleanup - remove temporary directory
-#FileUtils.rm_rf TMP_DIR_NAME
+# FileUtils.rm_rf TMP_DIR_NAME
 
 

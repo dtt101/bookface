@@ -156,8 +156,9 @@ while photos_downloaded < photo_total
   # we now have reached a batch count so make a page
   BookFacePages.make_page(page_number, image_dir, export_dir)
   # move pdf to exports
-  FileUtils.move(image_dir + "/#{page_number}.pdf", export_dir)
+  FileUtils.move("#{image_dir}/#{page_number}.pdf", export_dir)
   # TODO - delete all file from image_dir
+  FileUtils.rm_rf("#{image_dir}/.", secure: true)
 
   # update to next batch
   batch_count = 0

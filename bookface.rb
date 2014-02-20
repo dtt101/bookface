@@ -84,16 +84,7 @@ class BookFacePages
       }
       montage.write("page-#{page_number}.jpg")
 
-      # generate pdf in pdf folder with page id
-      Prawn::Document.generate("#{page_number}.pdf") do |pdf|
-        # TODO - draw images - I think back to montage
-        # pdf.image = 'path to image'
-        pdf.image "page-#{page_number}.jpg", :position => :center, :width => 500
-      end
-
     end
-
-    # TODO - move pdf into export_dir
 
   end
 
@@ -118,14 +109,6 @@ class BookFacePages
 end
 
 # START
-# new logic
-# count up facebook ids indefinitely
-
-# when we have 100 saved images pass directory to make page
-# make montage, save as pdf
-# return to main loop and continue until we hit count
-
-
 photo_total = options[:count] # amount of profile photos required
 profile_id = FACEBOOK_START_ID # holds current photo
 photos_downloaded = 0 # number of square profile photos downloaded
@@ -140,11 +123,9 @@ export_dir = FileUtils.mkdir(TMP_DIR_NAME + "/exports")[0]
 
 # main loop
 while photos_downloaded < photo_total
-  puts 'in main while'
+
   while batch_count < batch_limit
-    puts 'batch count and limit'
-    puts batch_count
-    puts batch_limit
+    # get square profile photo
     downloaded = BookFacePages.download_profile(image_dir, profile_id)
     if downloaded
       batch_count += 1
@@ -154,59 +135,30 @@ while photos_downloaded < photo_total
   end
 
   # we now have reached a batch count so make a page
+  puts "Making page #{page_number}"
   BookFacePages.make_page(page_number, image_dir, export_dir)
-  # move pdf to exports
-  FileUtils.move("#{image_dir}/#{page_number}.pdf", export_dir)
+  # move montage jpg to exports
+  FileUtils.move("#{image_dir}/page-#{page_number}.jpg", export_dir)
   # delete all files from image_dir
   FileUtils.rm_rf("#{image_dir}/.", secure: true)
 
-  # update to next batch
+  # start next batch
   batch_count = 0
   page_number += 1
 
 end
 
-class PdfMerger
+# generate pdf from saved images
+page_count = page_number-1 # offset pages to be actual number
 
-  def merge(pdf_paths, destination)
-
-    first_pdf_path = pdf_paths.delete_at(0)
-
-    Prawn::Document.generate(destination, :template => first_pdf_path) do |pdf|
-
-      pdf_paths.each do |pdf_path|
-        pdf.go_to_page(pdf.page_count)
-
-        template_page_count = count_pdf_pages(pdf_path)
-        (1..template_page_count).each do |template_page_number|
-          pdf.start_new_page(:template => pdf_path, :template_page => template_page_number)
-        end
-      end
-
+Prawn::Document.generate("bookface.pdf") do |pdf|
+  1.upto(page_count) do |i|
+    pdf.image "#{export_dir}/page-#{i}.jpg", :position => :center, :width => 500
+    if i != page_count
+      pdf.start_new_page
     end
-
   end
-
-  private
-
-  def count_pdf_pages(pdf_file_path)
-    pdf = Prawn::Document.new(:template => pdf_file_path)
-    pdf.page_count
-  end
-
-end
-
-# now munge all pages in exports together with prawn using pdf directory
-# output to same dir as script not TMP_DIR_NAME
-FileUtils.cd(export_dir) do
-  pdf_file_paths = Dir.glob("*.pdf").sort_by(&:to_i)
-  puts 'paths'
-  puts pdf_file_paths
-  m = PdfMerger.new
-  m.merge(pdf_file_paths, export_dir)
 end
 
 # cleanup - remove temporary directory
-# FileUtils.rm_rf TMP_DIR_NAME
-
-
+FileUtils.rm_rf TMP_DIR_NAME

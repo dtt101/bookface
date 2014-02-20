@@ -3,15 +3,6 @@
 # program: bookface.rb
 # usage:   ruby bookface.rb [options]
 
-# Use the Facebook API to download square profile photos of the first 100 Facebook users.
-# Mark Zuckerberg should be the first one.
-# Combine the photos into a single montage of 100 images laid out in a 10x10 grid
-# Generate a one-page PDF with the finished image in the centre of the page
-# Output should be a single PDF
-
-# depends on imagemagick: http://cactuslab.com/imagemagick/
-# gem install RMagick and prawn
-
 gem 'rmagick', '2.13.2'
 gem 'prawn', '0.15.0'
 
@@ -123,6 +114,8 @@ export_dir = FileUtils.mkdir(TMP_DIR_NAME + "/exports")[0]
 
 # main loop
 while photos_downloaded < photo_total
+
+  puts "Downloading pictures for page #{page_number}"
 
   while batch_count < batch_limit
     # get square profile photo

@@ -153,7 +153,7 @@ page_count = page_number-1 # offset pages to be actual number
 
 Prawn::Document.generate("bookface.pdf") do |pdf|
   1.upto(page_count) do |i|
-    pdf.image "#{export_dir}/page-#{i}.jpg", :position => :center, :width => 500
+    pdf.image "#{export_dir}/page-#{i}.jpg", :position => :center, :vposition => :center, :width => 500
     if i != page_count
       pdf.start_new_page
     end
